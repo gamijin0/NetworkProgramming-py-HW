@@ -37,7 +37,6 @@ class UdpServer(UdpSocket):
         print ("listening on %s" % str(addr))
         while(True):
             data,addr = self.socket.recvfrom(self.BUFFERSIZE)
-            self.socket.sendto()
             self.process(data,addr)
 
     @loggingWithTime
