@@ -61,13 +61,16 @@ class ChatRoom():
     a func to process the coming msg 
     """
     def process_msg_thread(self):
-         
+        print "Server start listening..." 
         while(True):
-            rl,wl,el = select.select(self.client_dict,[],[])
-            for r in rl:
-                data = r.recv(1024)
-                re_str = "<%s>[%s]Say:%s" % (self.getTime(),r,data)
-                broadcast(re_str,[r])
+            client_list = list(map(lambda x: x[1],self.client_dict.values()))
+            if(len(client_list)>0):
+                #print client_list
+                rl,wl,el = select.select(client_list,[],[])
+                for r in rl:
+                    data = r.recv(1024)
+                    re_str = "<%s>[%s]Say:%s" % (self.getTime(),str(r),data)
+                    self.broadcast(re_str,[r])
 
     """
     broadcast the msg to all the client
@@ -75,7 +78,7 @@ class ChatRoom():
     def broadcast(self,msg,except_list=[]):
         print msg
         for c in self.client_dict:
-            if c in except_list:
+            if self.client_dict[c][1] in except_list:
                 # not broacast to the user in block list
                 continue
             c_socket = self.client_dict[c][1]

@@ -1,6 +1,7 @@
 import socket
 import select
 import threading
+import time
 
 
 
@@ -33,6 +34,7 @@ class ChatRoomClient():
     """
     def sendMsg_thread(self):
         while(True):
+            time.sleep(0.2)
             msg = raw_input(">")
             try:
                 self.clientSocket.send(msg)
