@@ -14,9 +14,9 @@ class ChatRoom():
         self.serversocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.serversocket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEPORT,1)
 
-        self.client_dict = {} 
         # store all the clients, 
         # each element is username:[passwd,username]
+        self.client_dict = {} 
 
     """
     return the time casually
@@ -31,14 +31,14 @@ class ChatRoom():
         try:
             self.serversocket.bind(( self.host,self.port ))
             self.serversocket.listen(5)
-        except socket.error,e:
+        except e:
             print e
             exit(0)
 
-        ct = threading.Thread(process_client_thread,args=(self,))
-        ct.start()
-        mt = threading.Thread(process_msg_thread,args=(self,))
-        mt.start()
+        pct = threading.Thread(target=self.process_client_thread,args=())
+        pct.start()
+        pmt = threading.Thread(target=self.process_msg_thread,args=())
+        pmt.start()
 
 
 
@@ -50,24 +50,34 @@ class ChatRoom():
         while(True):
             try:
                 client,addr = self.serversocket.accept()
-                rt = threading.Thread(register_thread,args=(self,client))
+                print "[%s] try connecting..." % str(addr)
+                rt = threading.Thread(target=self.register_thread,args=(client,))
                 rt.start()
             except socket.error,e:
                 print e
 
-        pass
 
     """
     a func to process the coming msg 
     """
     def process_msg_thread(self):
-        pass 
+         
+        while(True):
+            rl,wl,el = select.select(self.client_dict,[],[])
+            for r in rl:
+                data = r.recv(1024)
+                re_str = "<%s>[%s]Say:%s" % (self.getTime(),r,data)
+                broadcast(re_str,[r])
 
     """
     broadcast the msg to all the client
     """
-    def broadcast(self,msg):
+    def broadcast(self,msg,except_list=[]):
+        print msg
         for c in self.client_dict:
+            if c in except_list:
+                # not broacast to the user in block list
+                continue
             c_socket = self.client_dict[c][1]
             if( c_socket is not None):
                 c_socket.send(msg)
@@ -85,14 +95,14 @@ class ChatRoom():
         username = data
         if username in self.client_dict:
             # already has this user, do login
-            re_str = "Please input your passwd:"
+            re_str = "You have registered, please input your passwd:"
             client.send(re_str)
             data = client.recv(1024)
             # check the passwd
             if(data == self.client_dict[username][0]):
                 re_str="<%s>[%s] login successfully!" % (self.getTime(),username)
                 self.broadcast(re_str)
-                # add the client socket
+                # login successfully, update the client socket
                 self.client_dict[username][1] = client
             else:
                 # login failed
@@ -101,19 +111,20 @@ class ChatRoom():
                 os._exit(0) # exit the thread
         else:
             # not has this user, do register
-            re_str="Please input the passwd for register:"
+            re_str="You are a new user, please input a passwd for register:"
             client.send(re_str)
             data = client.recv(1024)
             passwd = data
             self.client_dict[username] = [passwd,client]
-
-
+            re_str="<%s>[%s] register successfully!" % (self.getTime(),username)
+            self.broadcast(re_str)
             
 
 
-    def 
 
 
-
+if(__name__=="__main__"):
+    room = ChatRoom("127.0.0.1",3000)
+    room.run()
 
 
