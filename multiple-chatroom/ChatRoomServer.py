@@ -168,7 +168,9 @@ class ChatRoom():
                     client.send(re_str)
                     data = client.recv(1024)
                     passwd = data
-                    self.client_dict[username] = [passwd,client]
+                    if(self.client_list_lock.acquire()):
+                        self.client_dict[username] = [passwd,client]
+                        self.client_list_lock.release()
                     re_str="<%s>[%s] register successfully!" % (self.getTime(),username)
                     self.broadcast(re_str)
         except Exception,e:
