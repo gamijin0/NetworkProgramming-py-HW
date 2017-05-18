@@ -1,7 +1,7 @@
 import socket
-import select
 import threading
 import time
+import os
 
 
 
@@ -25,9 +25,14 @@ class ChatRoomClient():
     """
     def listenMsg_thread(self):
         while(True):
-            data = self.clientSocket.recv(1024)
-            print data
-
+            try:
+                data = self.clientSocket.recv(1024)
+                if(len(data)==0):
+                    print "Connection has broken."
+                    os._exit(0)
+                print data
+            except Exception,e:
+                print e
 
     """
     a thread func for send user msg 
@@ -36,9 +41,12 @@ class ChatRoomClient():
         while(True):
             time.sleep(0.2)
             msg = raw_input(">")
+            if(msg=="quit"):
+                self.clientSocket.close()
+                os._exit(0)
             try:
                 self.clientSocket.send(msg)
-            except e:
+            except socket.error,e:
                 print e
 
 if(__name__=="__main__"):

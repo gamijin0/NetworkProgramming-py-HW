@@ -12,11 +12,11 @@ class ChatRoom():
         self.host = host 
         self.port = port
         self.serversocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        self.serversocket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEPORT,1)
-
-        # store all the clients, 
+        # store all the clients,
         # each element is username:[passwd,username]
-        self.client_dict = {} 
+        self.client_dict = {}
+
+        self.client_list_lock = threading.RLock()
 
     """
     return the time casually
@@ -31,7 +31,7 @@ class ChatRoom():
         try:
             self.serversocket.bind(( self.host,self.port ))
             self.serversocket.listen(5)
-        except e:
+        except socket.error,e:
             print e
             exit(0)
 
@@ -58,19 +58,62 @@ class ChatRoom():
 
 
     """
+    return all the client socket
+    """
+    def getAllClientSocket(self):
+        client_list = []
+        for k,v in self.client_dict.iteritems():
+            if(v[1] is not None ):
+                client_list.append(v[1])
+        return client_list
+
+    """
+    get usernaem by one sock
+    """
+    def findUserbySocket(self,clientsock):
+        for name in self.client_dict:
+            if(self.client_dict[name][1]==clientsock):
+                return name
+
+    """
+    remove one useless sock from the client_list
+    """
+    def removeSocket(self,sock):
+        if(self.client_list_lock.acquire()):
+
+            username = self.findUserbySocket(sock)
+            re_str  = "<%s>[%s] has left the room." % (self.getTime(),username)
+            self.client_dict[username][1] = None
+            self.broadcast(re_str)
+
+            self.client_list_lock.release()
+
+    """
     a func to process the coming msg 
     """
     def process_msg_thread(self):
         print "Server start listening..." 
         while(True):
-            client_list = list(map(lambda x: x[1],self.client_dict.values()))
+            client_list = self.getAllClientSocket()
             if(len(client_list)>0):
                 #print client_list
                 rl,wl,el = select.select(client_list,[],[])
+                disconnect = False #use this flag to remove disconnect client
                 for r in rl:
-                    data = r.recv(1024)
-                    re_str = "<%s>[%s]Say:%s" % (self.getTime(),str(r),data)
-                    self.broadcast(re_str,[r])
+                        try:
+                            data = r.recv(1024)
+                            if(len(data)==0):
+                                # len(data)==0   -->  socket has disconnected
+                                self.removeSocket(r)
+                                break
+                            username = self.findUserbySocket(r)
+                            re_str = "<%s>[%s]Say:%s" % (self.getTime(),username,data)
+                            self.broadcast(re_str,[r])
+                        except Exception,e:
+                            print e
+                            disconnect = True
+                        if(disconnect):
+                            self.removeSocket(r)
 
     """
     broadcast the msg to all the client
@@ -92,35 +135,45 @@ class ChatRoom():
     :param client: the client socket which hasn't register 
     """
     def register_thread(self,client):
-        re_str = "Please input your username:"
-        client.send(re_str)
-        data = client.recv(1024)
-        username = data
-        if username in self.client_dict:
-            # already has this user, do login
-            re_str = "You have registered, please input your passwd:"
+        try:
+            re_str = "Please input your username:"
             client.send(re_str)
             data = client.recv(1024)
-            # check the passwd
-            if(data == self.client_dict[username][0]):
-                re_str="<%s>[%s] login successfully!" % (self.getTime(),username)
-                self.broadcast(re_str)
-                # login successfully, update the client socket
-                self.client_dict[username][1] = client
-            else:
-                # login failed
-                re_str="Login failed: wrong passwd"
+            username = data
+            if username in self.client_dict:
+                # already has this user, do login
+
+                if(self.client_dict[username][1] is not None):
+                    re_str = "This account is being used!"
+                    client.send(re_str)
+                    return
+
+                re_str = "You have registered, please input your passwd:"
                 client.send(re_str)
-                os._exit(0) # exit the thread
-        else:
-            # not has this user, do register
-            re_str="You are a new user, please input a passwd for register:"
-            client.send(re_str)
-            data = client.recv(1024)
-            passwd = data
-            self.client_dict[username] = [passwd,client]
-            re_str="<%s>[%s] register successfully!" % (self.getTime(),username)
-            self.broadcast(re_str)
+                data = client.recv(1024)
+                # check the passwd
+                if(data == self.client_dict[username][0]):
+                    re_str="<%s>[%s] login successfully!" % (self.getTime(),username)
+                    self.broadcast(re_str)
+                    # login successfully, update the client socket
+                    self.client_dict[username][1] = client
+                else:
+                    # login failed
+                    re_str="Login failed: wrong passwd"
+                    client.send(re_str)
+                    self.removeSocket(client)
+            else:
+                # not has this user, do register
+                    re_str="You are a new user, please input a passwd for register:"
+                    client.send(re_str)
+                    data = client.recv(1024)
+                    passwd = data
+                    self.client_dict[username] = [passwd,client]
+                    re_str="<%s>[%s] register successfully!" % (self.getTime(),username)
+                    self.broadcast(re_str)
+        except Exception,e:
+            print e
+
             
 
 
