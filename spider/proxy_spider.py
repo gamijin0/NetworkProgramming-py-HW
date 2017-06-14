@@ -17,9 +17,12 @@ if(__name__=="__main__"):
     for i in trs:
         chs = i.getchildren()
 	if len(chs)==7:
-		u = zip(["ip","port","is_transparent","link_type","lag","redion","update_time"],[ ch.text for ch in chs])
+		u = dict(zip(["ip","port","is_transparent","link_type","lag","redion","update_time"],[ ch.text for ch in chs]))
 		proxy_list.append(u)
-		print u
 		#ifor c in chs:
 		#	print c.text
     
+    for di in proxy_list[1:]:
+        print "==========================="
+        for k in di:
+            print k,':',di[k]
